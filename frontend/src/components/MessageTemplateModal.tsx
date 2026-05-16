@@ -23,7 +23,11 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
     generatedCount: number
     errors: Array<{ leadId: number; leadName: string; error: string }>
   } | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerSearch, setPickerSearch] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const pickerSearchRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
 
   const generateMessagesMutation = useMutation({
@@ -106,7 +110,21 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
     }
   }, [isOpen, handleClose])
 
-  const availableFields = ['firstName', 'lastName', 'email', 'jobTitle', 'companyName', 'countryCode']
+  const availableFields = [
+    'firstName',
+    'lastName',
+    'email',
+    'phoneNumber',
+    'jobTitle',
+    'companyName',
+    'countryCode',
+    'yearsInRole',
+    'linkedInProfile',
+  ]
+
+  const filteredFields = availableFields.filter((field) =>
+    field.toLowerCase().includes(pickerSearch.toLowerCase())
+  )
 
   const insertField = (field: string) => {
     if (textareaRef.current) {
@@ -122,6 +140,38 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
       }, 0)
     }
   }
+
+  const handlePickerSelect = (field: string) => {
+    insertField(field)
+    setPickerOpen(false)
+    setPickerSearch('')
+  }
+
+  useEffect(() => {
+    if (!pickerOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false)
+        setPickerSearch('')
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPickerOpen(false)
+        setPickerSearch('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    requestAnimationFrame(() => pickerSearchRef.current?.focus())
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [pickerOpen])
 
   if (!isOpen) return null
 
@@ -156,18 +206,48 @@ export const MessageTemplateModal: FC<MessageTemplateModalProps> = ({
                 Message Template
               </label>
               <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-sm text-gray-600">Insert field:</span>
-                  {availableFields.map((field) => (
-                    <button
-                      key={field}
-                      type="button"
-                      onClick={() => insertField(field)}
-                      className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
-                    >
-                      {`{${field}}`}
-                    </button>
-                  ))}
+                <div className="relative inline-block" ref={pickerRef}>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen((open) => !open)}
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
+                  >
+                    + Insert field
+                    <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {pickerOpen && (
+                    <div className="absolute left-0 z-10 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg">
+                      <div className="p-2 border-b border-gray-100">
+                        <input
+                          ref={pickerSearchRef}
+                          type="text"
+                          value={pickerSearch}
+                          onChange={(e) => setPickerSearch(e.target.value)}
+                          placeholder="Search fields..."
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <ul className="max-h-64 overflow-y-auto py-1">
+                        {filteredFields.length === 0 ? (
+                          <li className="px-3 py-2 text-sm text-gray-500">No matching fields</li>
+                        ) : (
+                          filteredFields.map((field) => (
+                            <li key={field}>
+                              <button
+                                type="button"
+                                onClick={() => handlePickerSelect(field)}
+                                className="block w-full text-left px-3 py-1.5 text-sm font-mono text-blue-800 hover:bg-blue-50"
+                              >
+                                {`{${field}}`}
+                              </button>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <textarea
                   ref={textareaRef}

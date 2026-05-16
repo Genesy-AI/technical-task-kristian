@@ -9,6 +9,9 @@ describe('generateMessageFromTemplate', () => {
     jobTitle: 'Software Engineer',
     companyName: 'Tech Corp',
     countryCode: 'US',
+    phoneNumber: '+1-555-0100',
+    yearsInRole: 3,
+    linkedInProfile: 'https://www.linkedin.com/in/john-doe',
   }
 
   const partialLead: Lead = {
@@ -18,6 +21,9 @@ describe('generateMessageFromTemplate', () => {
     jobTitle: undefined,
     companyName: '',
     countryCode: 'CA',
+    phoneNumber: null,
+    yearsInRole: null,
+    linkedInProfile: undefined,
   }
 
   const minimalLead: Lead = {
@@ -74,33 +80,78 @@ describe('generateMessageFromTemplate', () => {
     })
   })
 
-  describe('error handling for missing fields', () => {
-    it('should throw error when field is null', () => {
+  describe('error handling for missing required fields', () => {
+    it('should throw error when required field is null', () => {
       const template = 'Hello {firstName} {lastName}!'
       expect(() => generateMessageFromTemplate(template, partialLead)).toThrow(
         'Missing required field: lastName'
       )
     })
 
-    it('should throw error when field is undefined', () => {
-      const template = 'Your job title is {jobTitle}'
-      expect(() => generateMessageFromTemplate(template, partialLead)).toThrow(
-        'Missing required field: jobTitle'
-      )
-    })
-
-    it('should throw error when field is empty string', () => {
-      const template = 'You work at {companyName}'
-      expect(() => generateMessageFromTemplate(template, partialLead)).toThrow(
-        'Missing required field: companyName'
-      )
-    })
-
-    it('should throw error when field does not exist on lead', () => {
+    it('should throw error when required field does not exist on lead', () => {
       const template = 'Hello {firstName}, your last name is {lastName}'
       expect(() => generateMessageFromTemplate(template, minimalLead)).toThrow(
         'Missing required field: lastName'
       )
+    })
+  })
+
+  describe('placeholder substitution for missing optional fields', () => {
+    it('should substitute "-" when an optional field is undefined', () => {
+      const template = 'Your job title is {jobTitle}'
+      const result = generateMessageFromTemplate(template, partialLead)
+      expect(result).toBe('Your job title is -')
+    })
+
+    it('should substitute "-" when an optional field is an empty string', () => {
+      const template = 'You work at {companyName}'
+      const result = generateMessageFromTemplate(template, partialLead)
+      expect(result).toBe('You work at -')
+    })
+
+    it('should substitute "-" when phoneNumber is missing (enriched later)', () => {
+      const template = 'Reach me at {phoneNumber}'
+      const result = generateMessageFromTemplate(template, partialLead)
+      expect(result).toBe('Reach me at -')
+    })
+
+    it('should substitute "-" when yearsInRole is missing', () => {
+      const template = '{yearsInRole} years in role'
+      const result = generateMessageFromTemplate(template, partialLead)
+      expect(result).toBe('- years in role')
+    })
+
+    it('should substitute "-" when linkedInProfile is missing', () => {
+      const template = 'Connect on {linkedInProfile}'
+      const result = generateMessageFromTemplate(template, partialLead)
+      expect(result).toBe('Connect on -')
+    })
+  })
+
+  describe('substitution of new fields when present', () => {
+    it('should substitute phoneNumber', () => {
+      const template = 'Reach me at {phoneNumber}'
+      const result = generateMessageFromTemplate(template, fullLead)
+      expect(result).toBe('Reach me at +1-555-0100')
+    })
+
+    it('should substitute yearsInRole as a number string', () => {
+      const template = '{yearsInRole} years in role'
+      const result = generateMessageFromTemplate(template, fullLead)
+      expect(result).toBe('3 years in role')
+    })
+
+    it('should substitute linkedInProfile', () => {
+      const template = 'Connect on {linkedInProfile}'
+      const result = generateMessageFromTemplate(template, fullLead)
+      expect(result).toBe('Connect on https://www.linkedin.com/in/john-doe')
+    })
+
+    it('should substitute yearsInRole of 0 (not treated as missing)', () => {
+      const newHireLead: Lead = { ...fullLead, yearsInRole: 0 }
+      const template = '{yearsInRole} years in role'
+      const result = generateMessageFromTemplate(template, newHireLead)
+      expect(result).toBe('0 years in role')
     })
   })
 

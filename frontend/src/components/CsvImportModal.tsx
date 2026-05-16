@@ -97,9 +97,12 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
         firstName: lead.firstName,
         lastName: lead.lastName,
         email: lead.email,
+        phoneNumber: lead.phoneNumber || undefined,
         jobTitle: lead.jobTitle || undefined,
         countryCode: lead.countryCode || undefined,
         companyName: lead.companyName || undefined,
+        yearsInRole: lead.yearsInRole,
+        linkedInProfile: lead.linkedInProfile || undefined,
       }))
 
       return api.leads.bulkImport({ leads: leadsToImport })
@@ -192,9 +195,8 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
         <div className="px-6 py-4">
           {csvData.length === 0 ? (
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
-              }`}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
+                }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -237,8 +239,8 @@ export const CsvImportModal: FC<CsvImportModalProps> = ({ isOpen, onClose }) => 
                     </button>
                   </p>
                   <p className="text-sm text-gray-500">
-                    CSV must include: firstName, lastName, email (required). Optional: jobTitle, countryCode,
-                    companyName
+                    CSV must include: firstName, lastName, email (required). Optional: phoneNumber, jobTitle,
+                    countryCode, companyName, yearsInRole, linkedInProfile
                   </p>
                 </div>
               )}

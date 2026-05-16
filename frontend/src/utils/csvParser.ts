@@ -1,12 +1,16 @@
 import Papa from 'papaparse'
+import { normalizeCountryCode } from './country'
 
 export interface CsvLead {
   firstName: string
   lastName: string
   email: string
+  phoneNumber?: string
   jobTitle?: string
+  yearsInRole?: number
   countryCode?: string
   companyName?: string
+  linkedInProfile?: string
   isValid: boolean
   errors: string[]
   rowIndex: number
@@ -20,6 +24,10 @@ export const isValidEmail = (email: string): boolean => {
 export const parseCsv = (content: string): CsvLead[] => {
   if (!content?.trim()) {
     throw new Error('CSV content cannot be empty')
+  }
+
+  if (content.charCodeAt(0) === 0xfeff) {
+    content = content.slice(1)
   }
 
   const parseResult = Papa.parse<Record<string, string>>(content, {
@@ -49,6 +57,8 @@ export const parseCsv = (content: string): CsvLead[] => {
     if (Object.values(row).every((value) => !value)) return
 
     const lead: Partial<CsvLead> = { rowIndex: index + 2 }
+    let countryWarning: string | null = null
+    let yearsWarning: string | null = null
 
     Object.entries(row).forEach(([header, value]) => {
       const normalizedHeader = header.toLowerCase().replace(/[^a-z]/g, '')
@@ -67,16 +77,48 @@ export const parseCsv = (content: string): CsvLead[] => {
         case 'jobtitle':
           lead.jobTitle = trimmedValue || undefined
           break
-        case 'countrycode':
-          lead.countryCode = trimmedValue || undefined
+        case 'countrycode': {
+          if (!trimmedValue) {
+            lead.countryCode = undefined
+          } else {
+            const normalized = normalizeCountryCode(trimmedValue)
+            if (normalized) {
+              lead.countryCode = normalized
+            } else {
+              lead.countryCode = undefined
+              countryWarning = `Invalid country code "${trimmedValue}" was ignored`
+            }
+          }
           break
+        }
         case 'companyname':
           lead.companyName = trimmedValue || undefined
+          break
+        case 'phonenumber':
+          lead.phoneNumber = trimmedValue || undefined
+          break
+        case 'yearsinrole': {
+          if (!trimmedValue) {
+            lead.yearsInRole = undefined
+          } else {
+            const n = Number(trimmedValue)
+            if (Number.isInteger(n) && n >= 0) {
+              lead.yearsInRole = n
+            } else {
+              lead.yearsInRole = undefined
+              yearsWarning = `Invalid yearsInRole "${trimmedValue}" was ignored`
+            }
+          }
+          break
+        }
+        case 'linkedinprofile':
+          lead.linkedInProfile = trimmedValue || undefined
           break
       }
     })
 
     const errors: string[] = []
+    const warnings: string[] = []
     if (!lead.firstName?.trim()) {
       errors.push('First name is required')
     }
@@ -88,6 +130,12 @@ export const parseCsv = (content: string): CsvLead[] => {
     } else if (!isValidEmail(lead.email)) {
       errors.push('Invalid email format')
     }
+    if (countryWarning) {
+      warnings.push(countryWarning)
+    }
+    if (yearsWarning) {
+      warnings.push(yearsWarning)
+    }
 
     data.push({
       ...lead,
@@ -95,7 +143,7 @@ export const parseCsv = (content: string): CsvLead[] => {
       lastName: lead.lastName || '',
       email: lead.email || '',
       isValid: errors.length === 0,
-      errors,
+      errors: [...errors, ...warnings],
     } as CsvLead)
   })
 

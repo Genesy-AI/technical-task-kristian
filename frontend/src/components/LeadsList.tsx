@@ -10,6 +10,7 @@ export const LeadsList: FC = () => {
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false)
   const [isEnrichDropdownOpen, setIsEnrichDropdownOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [verifyingIds, setVerifyingIds] = useState<Set<number>>(new Set())
   const queryClient = useQueryClient()
 
   const leads = useQuery({
@@ -17,15 +18,14 @@ export const LeadsList: FC = () => {
     queryFn: async () => api.leads.getMany(),
     retry: false,
   })
-  
 
   const deleteLeadsMutation = useMutation({
     mutationFn: async (ids: number[]) => api.leads.deleteMany({ ids }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads', 'getMany'] })
       setSelectedLeads([])
-      
-      const message = data.deletedCount === 1 
+
+      const message = data.deletedCount === 1
         ? `Successfully deleted ${data.deletedCount} lead`
         : `Successfully deleted ${data.deletedCount} leads`
       toast.success(message)
@@ -37,17 +37,51 @@ export const LeadsList: FC = () => {
 
   const verifyEmailsMutation = useMutation({
     mutationFn: async (ids: number[]) => api.leads.verifyEmails({ leadIds: ids }),
+    onMutate: (ids) => {
+      setVerifyingIds(new Set(ids))
+      setIsEnrichDropdownOpen(false)
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads', 'getMany'] })
-      setIsEnrichDropdownOpen(false)
-      toast.success(
-        data.verifiedCount === 1
-          ? `Verified ${data.verifiedCount} email`
-          : `Verified ${data.verifiedCount} emails`
-      )
+      const failed = data.errors.length
+      if (failed > 0) {
+        toast.error(`Verified ${data.verifiedCount}, ${failed} failed`)
+      } else {
+        toast.success(
+          data.verifiedCount === 1
+            ? `Verified ${data.verifiedCount} email`
+            : `Verified ${data.verifiedCount} emails`
+        )
+      }
     },
     onError: () => {
       toast.error('Failed to verify emails. Please try again.')
+    },
+    onSettled: () => {
+      setVerifyingIds(new Set())
+    },
+  })
+
+  const enrichPhonesMutation = useMutation({
+    mutationFn: async (ids: number[]) => api.leads.enrichPhones({ leadIds: ids }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads', 'getMany'] })
+      setIsEnrichDropdownOpen(false)
+      const failed = data.errors.length
+      if (failed > 0) {
+        toast.error(`Enriched ${data.enrichedCount}, ${data.notFoundCount} not found, ${failed} failed`)
+      } else if (data.notFoundCount > 0) {
+        toast.success(`Enriched ${data.enrichedCount}, ${data.notFoundCount} not found`)
+      } else {
+        toast.success(
+          data.enrichedCount === 1
+            ? `Enriched ${data.enrichedCount} phone`
+            : `Enriched ${data.enrichedCount} phones`
+        )
+      }
+    },
+    onError: () => {
+      toast.error('Failed to enrich phones. Please try again.')
     }
   })
 
@@ -104,7 +138,7 @@ export const LeadsList: FC = () => {
                 {selectedLeads.length} selected
               </span>
             )}
-            
+
             <button
               onClick={() => setIsImportModalOpen(true)}
               className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -114,7 +148,7 @@ export const LeadsList: FC = () => {
               </svg>
               Import CSV
             </button>
-            
+
             <div className="relative">
               <button
                 onClick={() => selectedLeads.length > 0 && setIsEnrichDropdownOpen(!isEnrichDropdownOpen)}
@@ -156,6 +190,18 @@ export const LeadsList: FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12H8m8 0a8 8 0 11-16 0 8 8 0 0116 0zm-8 0V4" />
                         </svg>
                         Verify Email
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => enrichPhonesMutation.mutate(selectedLeads)}
+                      disabled={enrichPhonesMutation.isPending}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center">
+                        <svg className="mr-3 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        {enrichPhonesMutation.isPending ? 'Enriching…' : 'Enrich Phone'}
                       </div>
                     </button>
                     <button
@@ -226,13 +272,22 @@ export const LeadsList: FC = () => {
                   Email
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                  Phone Number
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                   Job Title
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                  Years in Role
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                   Company
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                   Country
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                  LinkedIn Profile
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                   Message
@@ -244,11 +299,10 @@ export const LeadsList: FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {!leads.isError && leads.data?.map((lead) => (
-                <tr 
-                  key={lead.id} 
-                  className={`hover:bg-gray-50 transition-colors ${
-                    selectedLeads.includes(lead.id) ? 'bg-blue-50' : ''
-                  }`}
+                <tr
+                  key={lead.id}
+                  className={`hover:bg-gray-50 transition-colors ${selectedLeads.includes(lead.id) ? 'bg-blue-50' : ''
+                    }`}
                 >
                   <td className="w-12 px-6 py-4">
                     <input
@@ -264,16 +318,29 @@ export const LeadsList: FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{lead.email || '-'} {lead.emailVerified === null ? '❓' : lead.emailVerified ? '✅' : '❌'}</div>
+                    <div className="text-sm text-gray-900">{lead.email || '-'} {verifyingIds.has(lead.id) ? '⏳' : lead.emailVerified === null ? '❓' : lead.emailVerified ? '✅' : '❌'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{lead.phoneNumber || '-'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{lead.jobTitle || '-'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{lead.yearsInRole !== null ? lead.yearsInRole : '-'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{lead.companyName || '-'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{lead.countryCode || '-'}</div>
+                    <div className="text-sm text-gray-900" title={lead.countryCode ?? undefined}>
+                      {lead.countryCode
+                        ? `${lead.countryCode}`
+                        : '-'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{lead.linkedInProfile || '-'}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 max-w-xs truncate" title={lead.message || ''}>
@@ -287,7 +354,7 @@ export const LeadsList: FC = () => {
               ))}
             </tbody>
           </table>
-          
+
           {leads.isError && (
             <div className="text-center py-12">
               <div className="bg-red-50 border border-red-200 rounded-lg p-6 mx-6">
@@ -306,7 +373,7 @@ export const LeadsList: FC = () => {
               </div>
             </div>
           )}
-          
+
           {!leads.isError && leads.data?.length === 0 && (
             <div className="text-center py-12">
               <div className="text-gray-500">

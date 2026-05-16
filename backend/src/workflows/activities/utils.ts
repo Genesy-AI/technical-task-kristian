@@ -1,3 +1,10 @@
+import {
+  orionConnectEnrich,
+  astraDialerEnrich,
+  nimbusLookupEnrich,
+  type EnrichResult,
+} from '../../services/phoneEnrichmentService'
+
 export async function verifyEmail(email: string): Promise<boolean> {
     if (email.includes('john.doe')) {
         return false;
@@ -12,4 +19,22 @@ export async function verifyEmail(email: string): Promise<boolean> {
     }
 
     return true;
+}
+
+export async function enrichPhoneViaOrion(
+  fullName: string,
+  companyWebsite: string
+): Promise<EnrichResult> {
+  return orionConnectEnrich(fullName, companyWebsite)
+}
+
+export async function enrichPhoneViaAstra(email: string): Promise<EnrichResult> {
+  return astraDialerEnrich(email)
+}
+
+export async function enrichPhoneViaNimbus(
+  email: string,
+  jobTitle: string | null
+): Promise<EnrichResult> {
+  return nimbusLookupEnrich(email, jobTitle)
 }

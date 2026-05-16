@@ -3,9 +3,12 @@ export interface LeadsBulkImportInput {
     firstName: string
     lastName: string
     email: string
+    phoneNumber?: string
     jobTitle?: string
     countryCode?: string
     companyName?: string
+    yearsInRole?: number
+    linkedInProfile?: string
   }[]
 }
 
